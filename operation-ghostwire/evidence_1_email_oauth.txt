@@ -1,0 +1,115 @@
+╔══════════════════════════════════════════════════════════════════════════╗
+║  OPERATION GHOSTWIRE — EVIDENCE FILE 1 of 4                             ║
+║  NovaPay Inc. — Incident Response Package                               ║
+║  Analyst: [YOU — second analyst, inheriting incomplete investigation]   ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION A: EMAIL HEADERS — reported by finance team member Priya Nair
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Received: from mail-pl1-f173.google.com (mail-pl1-f173.google.com [209.85.214.173])
+        by mx.novapay.io with ESMTPS id x3si1234567plk.23
+        for <p.nair@novapay.io>; Mon, 11 Mar 2024 09:14:22 +0530
+
+Return-Path: <support@novapay-helpdesk.com>
+From: "NovaPay IT Support" <support@novapay-helpdesk.com>
+To: p.nair@novapay.io
+Date: Mon, 11 Mar 2024 09:14:20 +0530
+Subject: [URGENT] Re-authorize your payment portal access — expires today
+Message-ID: <CABf3VxLmxq8...@mail.gmail.com>
+
+Authentication-Results: mx.novapay.io;
+       dkim=fail (signature did not verify) header.d=novapay-helpdesk.com;
+       spf=softfail (domain of novapay-helpdesk.com does not designate 209.85.214.173)
+       smtp.mailfrom=support@novapay-helpdesk.com;
+       dmarc=fail (p=NONE) header.from=novapay-helpdesk.com
+
+X-Originating-IP: 209.85.214.173   [Gmail SMTP relay]
+X-Mailer: Microsoft Outlook 16.0   [NOTE: inconsistent with Gmail relay above]
+
+--- EMAIL BODY (truncated) ---
+Dear Priya,
+
+Your access to the NovaPay payment portal will expire in 2 hours due to a
+scheduled security upgrade. Please re-authorize by clicking the link below.
+Failure to re-authorize may result in a compliance violation.
+
+[Re-authorize Access] → https://novapay-auth.vercel.app/oauth/reauth?token=eyJ...
+
+This link expires at 11:00 AM IST today.
+
+— NovaPay IT Security Team
+--- END EMAIL BODY ---
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION B: OAUTH / IDENTITY PROVIDER LOGS (Okta) — 11 Mar 2024
+         [NOTE: Okta logs are stored in UTC. India is UTC+5:30]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2024-03-11T03:38:44Z  [INFO]   user=p.nair  event=user.authentication.sso
+                               client_ip=103.21.58.77  geo=Bengaluru,IN
+                               device=Chrome/MacOS  mfa=TOTP_SUCCESS
+
+2024-03-11T03:44:51Z  [INFO]   user=p.nair  event=app.oauth2.token.grant
+                               scope=openid profile email payments:read payments:write
+                               client_id=novapay-portal  client_ip=103.21.58.77
+
+2024-03-11T03:45:18Z  [INFO]   user=p.nair  event=app.oauth2.token.grant
+                               scope=openid profile email payments:read payments:write
+                               client_id=novapay-reauth-tool  client_ip=103.21.58.77
+                               [NOTE: novapay-reauth-tool is NOT a registered internal app]
+
+2024-03-11T03:45:19Z  [WARN]   user=p.nair  event=app.oauth2.as.token.revoke
+                               token_type=refresh_token  reason=user_logout
+
+2024-03-11T03:45:20Z  [INFO]   event=app.oauth2.token.grant
+                               scope=payments:read payments:write admin:users
+                               client_id=novapay-reauth-tool  client_ip=185.220.101.55
+                               user=p.nair  [REPLAY — different IP, 1 second later]
+
+2024-03-11T04:02:17Z  [INFO]   event=app.oauth2.token.refresh
+                               client_id=novapay-reauth-tool  client_ip=185.220.101.55
+                               user=p.nair  token_age=17min
+
+2024-03-11T04:02:18Z  [INFO]   event=system.api.user.create
+                               actor=p.nair  new_user=svc_metrics
+                               role=service_account  scopes=payments:read metrics:read
+                               client_ip=185.220.101.55
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CHALLENGE QUESTIONS FOR EVIDENCE FILE 1
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Q1. Section A — Email Headers
+    a) The email domain is novapay-helpdesk.com. NovaPay's real domain is
+       novapay.io. What is this technique called? How would you verify?
+    b) DKIM=fail AND DMARC=fail. What do these mean, and why didn't the
+       email get blocked? (Hint: look at DMARC policy p=NONE)
+    c) The X-Mailer says Outlook, but the relay is Gmail SMTP. What does
+       this inconsistency tell you about the attacker's setup?
+
+Q2. Section B — OAuth Logs
+    a) At 03:44:51Z, Priya grants token to "novapay-portal" (legitimate).
+       At 03:45:18Z, she grants token to "novapay-reauth-tool" (unknown).
+       How was the second token grant triggered without her noticing?
+    b) At 03:45:20Z, the SAME token is used from IP 185.220.101.55,
+       exactly 1 second after it was issued at 03:45:18Z (from 103.21.58.77).
+       What does this 1-second gap and IP change tell you?
+       [Hint: look up what 185.220.101.55 is — it's a known type of infrastructure]
+    c) At 04:02:18Z, a new service account "svc_metrics" is created,
+       attributed to Priya. But was Priya actually at her keyboard?
+       Cross-reference the timestamps carefully. What is wrong?
+
+Q3. BIG PICTURE — what is the attacker's goal at this stage?
+    They have a service account with payments:read and metrics:read scope.
+    Why create a service account instead of just using Priya's token?
+    What does this tell you about their next move?
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+INVESTIGATOR'S NOTE (left by first analyst, incomplete):
+"svc_metrics created at 09:32 AM. Priya says she was in a stand-up meeting
+from 09:00–09:45. Need to check if... [NOTE ENDS — analyst went offline]"
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[REMEMBER: Okta logs are UTC. India is UTC+5:30. Do the math.]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

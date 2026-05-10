@@ -1,0 +1,117 @@
+╔══════════════════════════════════════════════════════════════════════════╗
+║  OPERATION GHOSTWIRE — EVIDENCE FILE 2 of 4                             ║
+║  NovaPay Inc. — Network Traffic Analysis                                ║
+║  Source: AWS VPC Flow Logs + Proxy Logs (UTC timestamps)                ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION A: VPC FLOW LOGS — internal east-west traffic
+           Source: payment-api-server (10.0.2.44)
+           Period: 11 Mar 2024 04:00Z – 06:00Z
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+04:03:11Z  10.0.2.44 → 10.0.5.12:5432   ACCEPT  bytes=248     [payment DB, normal query]
+04:03:12Z  10.0.2.44 → 10.0.5.12:5432   ACCEPT  bytes=248     [payment DB, normal query]
+04:04:55Z  10.0.3.19 → 10.0.5.12:5432   ACCEPT  bytes=248     [payment DB — NEW SOURCE IP]
+04:04:56Z  10.0.3.19 → 10.0.5.12:5432   ACCEPT  bytes=18942   [MUCH larger — bulk read?]
+04:05:02Z  10.0.3.19 → 10.0.5.12:5432   ACCEPT  bytes=87340   [escalating volume]
+04:05:08Z  10.0.3.19 → 10.0.5.12:5432   ACCEPT  bytes=241887  [~236KB in one query]
+04:05:14Z  10.0.3.19 → 10.0.5.12:5432   ACCEPT  bytes=241887
+04:05:20Z  10.0.3.19 → 10.0.5.12:5432   ACCEPT  bytes=241887
+04:05:26Z  10.0.3.19 → 10.0.5.12:5432   ACCEPT  bytes=241887
+04:05:32Z  10.0.3.19 → 10.0.5.12:5432   ACCEPT  bytes=241887  [repeating 6s intervals]
+04:05:38Z  10.0.3.19 → 10.0.5.12:5432   ACCEPT  bytes=241887
+04:06:41Z  10.0.3.19 → 10.0.5.12:5432   ACCEPT  bytes=12      [tiny — keepalive?]
+
+Internal DNS lookup: 10.0.3.19 → hostname: svc-metrics-collector.novapay.internal
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION B: EGRESS PROXY LOGS — outbound HTTPS traffic from 10.0.3.19
+           Period: 11 Mar 2024 04:00Z – 08:00Z
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TIME(UTC)    SRC_IP      DST_HOST                           PORT  BYTES_OUT  STATUS
+04:07:03Z   10.0.3.19   metrics.novapay.io                 443   1842       200
+04:09:03Z   10.0.3.19   metrics.novapay.io                 443   1844       200
+04:11:03Z   10.0.3.19   metrics.novapay.io                 443   1847       200
+04:13:03Z   10.0.3.19   metrics.novapay.io                 443   1841       200
+04:15:03Z   10.0.3.19   metrics.novapay.io                 443   1843       200
+04:17:03Z   10.0.3.19   metrics.novapay.io                 443   1839       200
+04:19:03Z   10.0.3.19   metrics.novapay.io                 443   1846       200
+04:21:03Z   10.0.3.19   metrics.novapay.io                 443   1842       200
+...          ...         [pattern continues every 120 seconds for 4 hours]...
+08:01:03Z   10.0.3.19   metrics.novapay.io                 443   241891     200  [SPIKE]
+08:03:03Z   10.0.3.19   metrics.novapay.io                 443   1841       200  [back to normal]
+
+TLS Certificate for metrics.novapay.io:
+  Subject:     CN=metrics.novapay.io
+  Issuer:      Let's Encrypt Authority X3
+  Valid from:  2024-03-10 00:00:00 UTC   [issued YESTERDAY]
+  Valid to:    2024-06-08 00:00:00 UTC
+  SANs:        metrics.novapay.io
+
+WHOIS for metrics.novapay.io:
+  Registrar:   Namecheap
+  Registered:  2024-03-09   [domain registered 2 DAYS AGO]
+  Registrant:  [REDACTED — privacy guard]
+
+WHOIS for novapay.io (legitimate):
+  Registrar:   GoDaddy
+  Registered:  2019-04-15
+  Registrant:  NovaPay Technologies Pvt Ltd, Bengaluru IN
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION C: DNS LOGS — queries from 10.0.3.19
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+04:06:59Z   QUERY  metrics.novapay.io      → 104.21.77.93   TTL=60
+04:07:01Z   QUERY  api.novapay.io          → 18.185.44.12   TTL=300   [legitimate]
+04:07:02Z   QUERY  db.novapay.internal     → 10.0.5.12      TTL=300   [legitimate]
+
+[NOTE: metrics.novapay.io resolves to a Cloudflare IP. The legitimate
+ metrics server is metrics.novapay.internal (10.0.4.88). This is a
+ completely different domain despite similar name.]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CHALLENGE QUESTIONS FOR EVIDENCE FILE 2
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Q1. Section A — VPC Flow Logs
+    a) 10.0.2.44 is the payment-api-server. Who or what is 10.0.3.19,
+       and why does it suddenly appear querying the payment DB at 04:04:55Z?
+       Cross-reference with Evidence File 1 to answer this.
+    b) The query sizes go: 248 → 18942 → 87340 → 241887 → [repeating].
+       What does this escalation pattern suggest the attacker is doing?
+       What is the technical term for reading data in progressively larger batches?
+    c) The 6-second interval between queries is suspiciously regular.
+       What does this regularity suggest about how the reads are being triggered?
+
+Q2. Section B — Proxy Logs (this is the hardest part)
+    a) Traffic to metrics.novapay.io fires every EXACTLY 120 seconds,
+       payload size varies only ~8 bytes each time (1839–1847 bytes).
+       What type of network behavior does this match? What is it called?
+    b) At 08:01:03Z, one request suddenly sends 241,891 bytes — the same
+       size as one chunk from the DB reads in Section A.
+       What just happened? Connect the two evidence sources.
+    c) The TLS certificate is valid and issued by Let's Encrypt, so the
+       proxy didn't block it. Why is a valid TLS cert NOT proof of legitimacy?
+       What should the proxy have checked instead?
+
+Q3. Section C — DNS
+    a) The real internal metrics server is metrics.novapay.internal.
+       The attacker's C2 is metrics.novapay.io. Why is this naming
+       choice clever from an attacker's perspective?
+    b) The TTL for metrics.novapay.io is 60 seconds. The legitimate
+       service has TTL=300. What does a very low TTL sometimes indicate?
+       (Hint: Google "fast flux DNS")
+    c) What DNS-based detection technique could have caught this?
+
+Q4. RED HERRING ALERT
+    One of the following is actually AUTHORIZED and not malicious.
+    Which one, and how would you confirm it?
+    - svc-metrics-collector querying the payment DB
+    - svc-metrics-collector sending HTTPS to metrics.novapay.io
+    - The 10.0.2.44 payment-api-server talking to the DB
+    - The Let's Encrypt certificate on metrics.novapay.io
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
