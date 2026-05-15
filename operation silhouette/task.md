@@ -1,10 +1,4 @@
 # Operation Silhouette
-### CompTIA Security+ CTF Case Study — #2
-**Target:** Vaultify Inc. — B2B SaaS startup, document encryption platform  
-**Your role:** Junior Security Analyst, called in 48 hours after the breach  
-**Difficulty:** Intermediate–Advanced  
-**Skills tested:** Physical security analysis · Social engineering identification · Active Directory forensics · USB/removable media forensics · Access control gaps · Insider vs outsider threat determination · Log correlation · Incident response
-
 ---
 
 > **Briefing**
